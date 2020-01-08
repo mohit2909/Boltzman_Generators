@@ -1,4 +1,3 @@
-__author__ = 'noe'
 
 import tensorflow as tf
 import numpy as np

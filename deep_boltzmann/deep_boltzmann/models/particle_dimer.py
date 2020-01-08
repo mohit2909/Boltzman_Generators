@@ -256,4 +256,3 @@ class ParticleDimer(object):
         axis.set_ylim(E_scan.min() - 2.0, E_scan[int(E_scan.size / 2)] + 2.0)
 
         return x_scan, E_scan
-

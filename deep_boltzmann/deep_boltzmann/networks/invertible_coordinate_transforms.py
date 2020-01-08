@@ -19,6 +19,7 @@ def pca(X0, keepdims=None):
     # pca
     X0mean = X0.mean(axis=0)
     X0meanfree = X0 - X0mean
+    print(X0mean)
     C = np.dot(X0meanfree.T, X0meanfree) / (X0meanfree.shape[0] - 1.0)
     eigval, eigvec = np.linalg.eigh(C)
     # sort in descending order and keep only the wanted eigenpairs
@@ -739,7 +740,7 @@ class MixedCoordinatesTransformation(InternalCoordinatesTransformation):
 
         """
         self.cart_atom_indices = np.array(cart_atom_indices)
-        self.cart_indices = np.concatenate([[i*3, i*3+1, i*3+2] for i in cart_atom_indices])
+        self.cart_indices = np.concatenate([[i*3,i*3+1,i*3+2] for i in cart_atom_indices])
         self.batchwise_Z_indices, _ = decompose_Z_indices(self.cart_atom_indices, Z_indices_no_order)
         self.Z_indices = np.vstack(self.batchwise_Z_indices)
         self.dim = 3*(self.cart_atom_indices.size + self.Z_indices.shape[0])
@@ -752,7 +753,8 @@ class MixedCoordinatesTransformation(InternalCoordinatesTransformation):
             raise ValueError('Need to specify X0')
         if X0ic is None:
             X0ic = X0
-
+        print(self.cart_indices)
+        print(X0[:,self.cart_indices])
         # Compute PCA transformation on initial data
         self.cart_X0mean, self.cart_Twhiten, self.cart_Tblacken, self.std = pca(X0[:, self.cart_indices],
                                                                                 keepdims=self.cart_indices.size-remove_dof)
@@ -846,7 +848,7 @@ class MixedCoordinatesTransformation(InternalCoordinatesTransformation):
         angle_loss = _angle_loss(angles)
 
         torsions = tf.gather(z_ics, torsion_idxs, axis=-1)
-        torsions -= 180 + self.torsion_cut 
+        torsions -= 180 + self.torsion_cut
         angle_loss += _angle_loss(torsions)
 
 
@@ -890,4 +892,3 @@ class MixedCoordinatesTransformation(InternalCoordinatesTransformation):
         # reshape to (batchsize, 1)
         log_det_jac = tf.reshape(log_det_jac, (-1, 1))
         return log_det_jac
-

@@ -183,6 +183,8 @@ class InvNet(object):
             standard deviation of Gauss kernels along reaction coordinate
         """
         # evaluate rc
+        print(self.output_x)
+        print(type(self.output_x))
         rc = rc_func(self.output_x)
         rc = tf.expand_dims(rc, axis=1)
         # kernelize all values
@@ -555,7 +557,7 @@ class EnergyInvNet(InvNet):
             d__0 = tf.concat([d, np.array([0], dtype=np.float32)], 0)
             return d_0_ + d__0 + log_pacc_0_ + log_pacc__0
 
-    def train_KL(self, optimizer=None, lr=0.001, epochs=2000, batch_size=1024, verbose=1, clipnorm=None,
+    def train_KL(self, optimizer=None, lr=0.001, epochs= 200, batch_size=256, verbose=1, clipnorm=None,
                  high_energy=100, max_energy=1e10, temperature=1.0, explore=1.0):
         if optimizer is None:
             if clipnorm is None:
@@ -580,9 +582,10 @@ class EnergyInvNet(InvNet):
         for e in range(epochs):
             # train in batches
             #w = np.sqrt(tfac)[:, None] * np.random.randn(batch_size, self.dim)
-            w = self.sample_z(temperature=tfac[:, None], nsample=batch_size, return_energy=False)
+            x_batch = x[np.random.choice(I, size=batch_size, replace=True)]
+            #w = self.sample_z(temperature=tfac[:, None], nsample=batch_size, return_energy=False)
             # w = np.random.randn(batch_size, self.dim)
-            train_loss_batch = self.Tzx.train_on_batch(x=w, y=dummy_output)
+            train_loss_batch = self.Tzx.train_on_batch(x=[x_batch, w_batch], y=dummy_output)
             train_loss.append(train_loss_batch)
             if verbose == 1:
                 print('Epoch', e, ' loss', np.mean(train_loss_batch))
@@ -709,6 +712,7 @@ class EnergyInvNet(InvNet):
 
         # assemble model
         dual_model = keras.models.Model(inputs=inputs, outputs=outputs)
+        print(loss_weights)
         dual_model.compile(optimizer=optimizer, loss=losses, loss_weights=loss_weights)
 
         # training loop
