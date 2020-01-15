@@ -155,6 +155,19 @@ class ParticleDimer(object):
         E = 0.5*self.params['eps']*tf.reduce_sum(D2rel**6, axis=(1, 2))  # do 1/2 because we have double-counted each interaction
         return E
 
+    def LJ_energy_torch(self,x):
+        xcomp = x[:, 0::2]
+        ycomp = x[:, 1::2]
+        batchsize = x.size()[0]
+        n = xcomp.size()[1]
+        D2 = D2 + (1.0 - mmatrix)  # this is just to avoid NaNs, the inverses will be set to 0 later
+        D2rel = (self.params['rm']**2) / D2
+        # remove self-interactions and interactions between dimer particles
+        D2rel = D2rel * mmatrix
+        # energy
+        E = 0.5*self.params['eps']*torch.sum(D2rel**6, axis=(1, 2))  # do 1/2 because we have double-counted each interaction
+        return E
+
     def dimer_energy(self, x):
         # center restraint energy
         energy_dx = self.params['dimer_k']*(x[:, 0] + x[:, 2])**2
@@ -176,6 +189,19 @@ class ParticleDimer(object):
         energy_dy = self.params['dimer_k']*(x[:, 1])**2 + self.params['dimer_k']*(x[:, 3])**2
         # first two particles
         d = tf.sqrt((x[:, 0]-x[:, 2])**2 + (x[:, 1]-x[:, 3])**2)
+        d0 = 2 * (d - self.params['dimer_dmid'])
+        d2 = d0*d0
+        d4 = d2*d2
+        energy_interaction = self.params['dimer_slope']*d0 - self.params['dimer_a']*d2 + self.params['dimer_b']*d4
+
+        return energy_dx + energy_dy + energy_interaction
+    def dimer_energy_torch(self,x):
+        # center restraint energy
+        energy_dx = self.params['dimer_k']*(x[:, 0] + x[:, 2])**2
+        # y restraint energy
+        energy_dy = self.params['dimer_k']*(x[:, 1])**2 + self.params['dimer_k']*(x[:, 3])**2
+        # first two particles
+        d = torch.sqrt((x[:, 0]-x[:, 2])**2 + (x[:, 1]-x[:, 3])**2)
         d0 = 2 * (d - self.params['dimer_dmid'])
         d2 = d0*d0
         d4 = d2*d2
@@ -212,7 +238,8 @@ class ParticleDimer(object):
         d_up = (ycomp - self.params['box_halfsize'])
         E += tf.reduce_sum((tf.sign(d_up) + 1) * self.params['box_k'] * d_up**2, axis=1)
         return E
-
+    def box_energy_torch(self,x):
+        a=5
     def grid_energy(self, x):
         d2 = (x - self.grid)**2
         E = np.sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
@@ -222,7 +249,10 @@ class ParticleDimer(object):
         d2 = (x - self.grid)**2
         E = tf.reduce_sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
         return E
-
+    def grid_energy_torch(self,x):
+        d2 = (x - self.grid)**2
+        E = torch.sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
+        return E
     def _energy(self, x):
         return self.LJ_energy(x) + self.dimer_energy(x) + self.box_energy(x) + self.grid_energy(x)
 
@@ -238,8 +268,9 @@ class ParticleDimer(object):
             return energy_x
 
     def energy_tf(self, x):
-        return self.LJ_energy_tf(x) + self.dimer_energy_tf(x) + self.box_energy_tf(x) + self.box_energy_tf(x)
-
+        return self.LJ_energy_tf(x) + self.dimer_energy_tf(x) + self.box_energy_tf(x) + self.grid_energy_tf(x)
+    def energy_torch(self,x):
+        return self.LJ_energy_torch(x) + self.dimer_energy_torch(x) + self.box_energy_torch(x) + self.grid_energy_torch(x);
     def plot_dimer_energy(self, axis=None):
         """ Plots the dimer energy to the standard figure """
         x_scan = np.linspace(0.5, 2.5, 100)
