@@ -1,5 +1,7 @@
 __author__ = 'noe'
-
+import torch
+import torch.nn as nn
+from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
@@ -160,6 +162,13 @@ class ParticleDimer(object):
         ycomp = x[:, 1::2]
         batchsize = x.size()[0]
         n = xcomp.size()[1]
+        Xcomp = torch.unsqueeze(xcomp, 2).expand( -1, -1, n)
+        Ycomp = torch.unsqueeze(ycomp, 2).expand( -1, -1, n)
+        Dx = Xcomp - Xcomp.permute(0, 2, 1)
+        Dy = Ycomp - Ycomp.permute(0, 2, 1)
+        D2 = Dx**2 + Dy**2
+        mask_matrix = torch.from_numpy(self.mask_matrix)
+        mmatrix = torch.unsqueeze(mask_matrix, 0).expand(batchsize, -1, -1)
         D2 = D2 + (1.0 - mmatrix)  # this is just to avoid NaNs, the inverses will be set to 0 later
         D2rel = (self.params['rm']**2) / D2
         # remove self-interactions and interactions between dimer particles
@@ -239,7 +248,20 @@ class ParticleDimer(object):
         E += tf.reduce_sum((tf.sign(d_up) + 1) * self.params['box_k'] * d_up**2, axis=1)
         return E
     def box_energy_torch(self,x):
-        a=5
+        xcomp = x[:, 0::2]
+        ycomp = x[:, 1::2]
+        # indicator functions
+        E = 0.0
+        d_left = -(xcomp + self.params['box_halfsize'])
+        E += torch.sum((torch.sign(d_left) + 1) * self.params['box_k'] * d_left**2, axis=1)
+        d_right = (xcomp - self.params['box_halfsize'])
+        E += torch.sum((torch.sign(d_right) + 1) * self.params['box_k'] * d_right**2, axis=1)
+        d_down = -(ycomp + self.params['box_halfsize'])
+        E += torch.sum((torch.sign(d_down) + 1) * self.params['box_k'] * d_down**2, axis=1)
+        d_up = (ycomp - self.params['box_halfsize'])
+        E += torch.sum((torch.sign(d_up) + 1) * self.params['box_k'] * d_up**2, axis=1)
+        return E
+
     def grid_energy(self, x):
         d2 = (x - self.grid)**2
         E = np.sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
@@ -250,8 +272,11 @@ class ParticleDimer(object):
         E = tf.reduce_sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
         return E
     def grid_energy_torch(self,x):
-        d2 = (x - self.grid)**2
-        E = torch.sum(self.params['grid_k'] * (self.params['rm']**2 * d2) ** 6, axis=1)
+        d2 = (x - torch.from_numpy(self.grid) ) **2
+        tk1 = self.params['grid_k']
+        tk2 =  self.params['rm']
+        temp2 = (tk2**2 * d2) ** 6
+        E = torch.sum(tk1 * temp2, axis=1)
         return E
     def _energy(self, x):
         return self.LJ_energy(x) + self.dimer_energy(x) + self.box_energy(x) + self.grid_energy(x)
